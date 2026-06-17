@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>UDCP — Unified Department Coordination Platform | Bhopal</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body,#root{height:100%;width:100%}
+  body{font-family:'Inter',sans-serif;background:#f1f5f9;color:#1e293b;overflow:hidden}
+  ::-webkit-scrollbar{width:5px;height:5px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:99px}
+  input,select,textarea,button{font-family:inherit}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+const DEPTS = {
+  municipal:   { label:"Municipal Corp.",    color:"#2563eb", light:"#dbeafe", icon:"🏛️" },
+  water:       { label:"Water Supply Dept.", color:"#0891b2", light:"#cffafe", icon:"💧" },
+  electricity: { label:"Electricity Dept.",  color:"#d97706", light:"#fef3c7", icon:"⚡" },
+  telecom:     { label:"Telecom Providers",  color:"#7c3aed", light:"#ede9fe", icon:"📡" },
+  roads:       { label:"Road Authority",     color:"#059669", light:"#d1fae5", icon:"🛣️" },
+};
+
+const INIT_PROJECTS = [
+  { id:1, name:"NH-12 Road Widening", dept:"roads", status:"active",
+    start:"2026-04-01", end:"2026-09-30", budget:4500000,
+    location:"Kolar Road, Bhopal", lat:23.190, lng:77.430,
+    officer:"Rajesh Tiwari", priority:"high",
+    description:"Widening NH-12 from 2-lane to 4-lane between Kolar Chowk and Airport Road. ~12,000 daily commuters affected.",
+    conflicts:[2], progress:35 },
+  { id:2, name:"Kolar Water Pipeline Upgrade", dept:"water", status:"pending",
+    start:"2026-05-15", end:"2026-08-20", budget:2800000,
+    location:"Kolar Road, Bhopal", lat:23.191, lng:77.432,
+    officer:"Sunita Patel", priority:"high",
+    description:"Replacing 20-year-old cast-iron water mains with HDPE pipes along entire Kolar Road corridor.",
+    conflicts:[1,3], progress:0 },
+  { id:3, name:"Fiber Optic Network Expansion", dept:"telecom", status:"approved",
+    start:"2026-06-01", end:"2026-10-15", budget:1900000,
+    location:"Kolar Rd & MP Nagar", lat:23.192, lng:77.431,
+    officer:"Amit Verma", priority:"medium",
+    description:"Underground fiber cable laying across Kolar Road and MP Nagar zones for 5G readiness.",
+    conflicts:[2], progress:0 },
+  { id:4, name:"MP Nagar LED Streetlight Upgrade", dept:"electricity", status:"active",
+    start:"2026-03-01", end:"2026-06-30", budget:980000,
+    location:"MP Nagar Zone 1 & 2", lat:23.232, lng:77.435,
+    officer:"Priya Dubey", priority:"medium",
+    description:"Replacing 420 sodium vapour lights with smart LED fixtures across MP Nagar.",
+    conflicts:[], progress:72 },
+  { id:5, name:"Bittan Market Drainage Fix", dept:"municipal", status:"completed",
+    start:"2026-01-10", end:"2026-03-20", budget:650000,
+    location:"Bittan Market, Bhopal", lat:23.245, lng:77.420,
+    officer:"Kavita Singh", priority:"low",
+    description:"Storm drain repair and road patching around Bittan Market area. Resolved annual flooding.",
+    conflicts:[], progress:100 },
+  { id:6, name:"AIIMS Road Accessible Footpaths", dept:"municipal", status:"active",
+    start:"2026-04-15", end:"2026-07-10", budget:1200000,
+    location:"AIIMS Road, Bhopal", lat:23.185, lng:77.460,
+    officer:"Rohit Gupta", priority:"medium",
+    description:"Building CPWD-standard accessible footpaths from Saket Nagar Square to AIIMS main gate.",
+    conflicts:[], progress:20 },
+];
+
+const INIT_NOTIFS = [
+  { id:1, type:"conflict", title:"Conflict Detected",   msg:"NH-12 Road Widening overlaps with Kolar Water Pipeline — same corridor, overlapping dates.", time:"2 hours ago", read:false },
+  { id:2, type:"approval", title:"Approval Required",   msg:"Kolar Water Pipeline Upgrade awaiting approval. Review conflict before deciding.", time:"5 hours ago", read:false },
+  { id:3, type:"info",     title:"Project Updated",     msg:"MP Nagar LED Streetlight Upgrade progress updated to 72% by Field Engineer.", time:"1 day ago",   read:true },
+  { id:4, type:"warning",  title:"Deadline Approaching",msg:"MP Nagar LED Streetlight Upgrade ends in 14 days. Current progress: 72%.", time:"2 days ago",  read:true },
+  { id:5, type:"success",  title:"Project Completed",   msg:"Bittan Market Drainage Fix marked as completed by Kavita Singh.", time:"3 days ago",  read:true },
+];
+
+const AUDIT = [
+  { id:1, user:"Rajesh Tiwari", action:"Created project",         target:"NH-12 Road Widening",    time:"2026-04-01 09:12", role:"Planner" },
+  { id:2, user:"Sunita Patel",  action:"Submitted for approval",  target:"Kolar Water Pipeline",   time:"2026-04-02 11:30", role:"Planner" },
+  { id:3, user:"System",        action:"Conflict auto-detected",  target:"NH-12 ↔ Kolar Pipeline", time:"2026-04-02 11:31", role:"System"  },
+  { id:4, user:"Priya Dubey",   action:"Updated progress to 72%", target:"MP Nagar Streetlight",   time:"2026-04-10 14:20", role:"Field Eng." },
+  { id:5, user:"Kavita Singh",  action:"Marked as completed",     target:"Bittan Market Drainage", time:"2026-03-20 17:05", role:"Planner" },
+  { id:6, user:"Amit Verma",    action:"Project approved",        target:"Fiber Optic Expansion",  time:"2026-04-05 10:45", role:"Approver" },
+  { id:7, user:"Admin",         action:"User login",              target:"Dashboard",              time:"2026-06-17 08:00", role:"Admin"   },
+];
+
+const PAGES = ["Dashboard","Projects","Map","Conflicts","Approvals","Analytics","Notifications","Audit Logs","Citizen Portal"];
+const ICONS = { Dashboard:"📊", Projects:"📁", Map:"🗺️", Conflicts:"⚠️", Approvals:"✅", Analytics:"📈", Notifications:"🔔", "Audit Logs":"📜", "Citizen Portal":"👥" };
+
+const sc = s => ({active:"#059669",pending:"#d97706",approved:"#2563eb",completed:"#6b7280",rejected:"#dc2626"}[s]||"#6b7280");
+const sb = s => ({active:"#d1fae5",pending:"#fef3c7",approved:"#dbeafe",completed:"#f3f4f6",rejected:"#fee2e2"}[s]||"#f3f4f6");
+const pc = p => ({high:"#dc2626",medium:"#d97706",low:"#059669"}[p]||"#6b7280");
+
+function Badge({text,color,bg}){
+  return <span style={{display:"inline-block",padding:"2px 10px",borderRadius:20,fontSize:11,
+    fontWeight:700,color:color||"#374151",background:bg||"#f3f4f6",whiteSpace:"nowrap"}}>{text}</span>;
+}
+function Card({children,style,onClick}){
+  return <div onClick={onClick} style={{background:"#fff",borderRadius:16,border:"1px solid #e5e7eb",
+    padding:"18px 22px",boxShadow:"0 1px 3px rgba(0,0,0,.05)",cursor:onClick?"pointer":"default",...style}}>{children}</div>;
+}
+function Bar({value,color}){
+  return <div style={{background:"#f1f5f9",borderRadius:99,height:6,overflow:"hidden"}}>
+    <div style={{width:value+"%",background:color||"#2563eb",height:"100%",borderRadius:99}}/>
+  </div>;
+}
+function StatCard({icon,label,value,sub,color}){
+  return <Card>
+    <div style={{display:"flex",alignItems:"center",gap:14}}>
+      <div style={{width:50,height:50,borderRadius:14,background:color+"22",display:"flex",
+        alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>{icon}</div>
+      <div>
+        <div style={{fontSize:11,color:"#6b7280",fontWeight:700,textTransform:"uppercase",letterSpacing:.6}}>{label}</div>
+        <div style={{fontSize:28,fontWeight:800,color:"#0f172a",lineHeight:1.1}}>{value}</div>
+        {sub&&<div style={{fontSize:11,color:"#94a3b8",marginTop:2}}>{sub}</div>}
+      </div>
+    </div>
+  </Card>;
+}
+function Workflow({project}){
+  const steps=[
+    {l:"Submitted",    done:true,                                                i:"📋"},
+    {l:"Conflict Check",done:true,                                               i:"🔍"},
+    {l:"Dept. Notified",done:true,                                               i:"📨"},
+    {l:"Under Review", done:["approved","active","rejected"].includes(project.status),i:"👁️"},
+    {l:"Decision",     done:["approved","active","rejected"].includes(project.status),i:project.status==="rejected"?"❌":"✅"},
+    {l:"Scheduled",    done:project.status==="active",                           i:"📅"},
+  ];
+  return <div style={{display:"flex",alignItems:"center",overflowX:"auto",paddingBottom:4}}>
+    {steps.map((s,i)=><React.Fragment key={i}>
+      <div style={{display:"flex",flexDirection:"column",alignItems:"center",minWidth:66}}>
+        <div style={{width:34,height:34,borderRadius:"50%",
+          background:s.done?"#2563eb":"#f1f5f9",border:"2px solid "+(s.done?"#2563eb":"#e5e7eb"),
+          display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>{s.i}</div>
+        <div style={{fontSize:10,color:s.done?"#2563eb":"#94a3b8",marginTop:4,textAlign:"center",
+          fontWeight:s.done?700:400,lineHeight:1.2}}>{s.l}</div>
+      </div>
+      {i<steps.length-1&&<div style={{height:2,width:18,background:steps[i+1].done?"#2563eb":"#e5e7eb",marginBottom:18,flexShrink:0}}/>}
+    </React.Fragment>)}
+  </div>;
+}
+function Donut({data}){
+  const total=data.reduce((a,b)=>a+b.value,0)||1;
+  let a=-Math.PI/2;
+  const cx=75,cy=75,r=62,ir=36;
+  return <div style={{display:"flex",alignItems:"center",gap:16}}>
+    <svg width={150} height={150} style={{flexShrink:0}}>
+      {data.map((d,i)=>{
+        const sw=(d.value/total)*Math.PI*2;
+        const x1=cx+r*Math.cos(a),y1=cy+r*Math.sin(a);
+        const x2=cx+r*Math.cos(a+sw),y2=cy+r*Math.sin(a+sw);
+        const ix1=cx+ir*Math.cos(a),iy1=cy+ir*Math.sin(a);
+        const ix2=cx+ir*Math.cos(a+sw),iy2=cy+ir*Math.sin(a+sw);
+        const lg=sw>Math.PI?1:0;
+        const path=`M${x1} ${y1}A${r} ${r} 0 ${lg} 1 ${x2} ${y2}L${ix2} ${iy2}A${ir} ${ir} 0 ${lg} 0 ${ix1} ${iy1}Z`;
+        a+=sw;
+        return <path key={i} d={path} fill={d.color}/>;
+      })}
+      <text x={cx} y={cy-8} textAnchor="middle" fontSize={22} fontWeight={800} fill="#0f172a">{total}</text>
+      <text x={cx} y={cy+12} textAnchor="middle" fontSize={11} fill="#94a3b8">projects</text>
+    </svg>
+    <div style={{flex:1}}>
+      {data.map((d,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:8,marginBottom:9}}>
+        <div style={{width:10,height:10,borderRadius:3,background:d.color,flexShrink:0}}/>
+        <div style={{fontSize:13,color:"#374151",flex:1}}>{d.label}</div>
+        <div style={{fontSize:14,fontWeight:800,color:"#0f172a"}}>{d.value}</div>
+      </div>)}
+    </div>
+  </div>;
+}
+function Bars({data,h=130}){
+  const max=Math.max(...data.map(d=>d.value),1);
+  return <div style={{display:"flex",gap:8,alignItems:"flex-end",height:h,padding:"0 4px"}}>
+    {data.map((d,i)=><div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+      <div style={{fontSize:11,fontWeight:700,color:"#374151"}}>{d.value}</div>
+      <div style={{width:"100%",background:d.color||"#2563eb",borderRadius:"4px 4px 0 0",
+        height:(d.value/max)*(h-30),minHeight:4}}/>
+      <div style={{fontSize:10,color:"#94a3b8",textAlign:"center"}}>{d.label}</div>
+    </div>)}
+  </div>;
+}
+
+function MapCanvas({projects}){
+  const ref=useRef(null);
+  const [sel,setSel]=useState(null);
+  const [hov,setHov]=useState(null);
+  const W=700,H=400;
+  const LL=[23.17,23.26,77.39,77.48];
+  function xy(lat,lng){
+    return {
+      x:Math.max(30,Math.min(W-30,((lng-LL[2])/(LL[3]-LL[2]))*W)),
+      y:Math.max(30,Math.min(H-30,((LL[1]-lat)/(LL[1]-LL[0]))*H))
+    };
+  }
+  function draw(){
+    const c=ref.current; if(!c)return;
+    const ctx=c.getContext("2d");
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle="#e8f4f8"; ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle="#c8dce6"; ctx.lineWidth=.5;
+    for(let i=0;i<W;i+=60){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,H);ctx.stroke();}
+    for(let i=0;i<H;i+=50){ctx.beginPath();ctx.moveTo(0,i);ctx.lineTo(W,i);ctx.stroke();}
+    const roads=[[[23.185,77.39],[23.19,77.48]],[[23.17,77.43],[23.26,77.43]],
+      [[23.22,77.39],[23.22,77.48]],[[23.17,77.46],[23.26,77.46]]];
+    ctx.strokeStyle="#b8ccd8"; ctx.lineWidth=2.5;
+    roads.forEach(r=>{ctx.beginPath();r.forEach(([la,ln],i)=>{const p=xy(la,ln);i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y);});ctx.stroke();});
+    projects.forEach(p=>{
+      if(!p.conflicts.length)return;
+      const {x,y}=xy(p.lat,p.lng);
+      ctx.save();ctx.globalAlpha=.1;ctx.fillStyle="#ef4444";
+      ctx.beginPath();ctx.arc(x,y,46,0,Math.PI*2);ctx.fill();
+      ctx.globalAlpha=.5;ctx.strokeStyle="#ef4444";ctx.lineWidth=1.5;ctx.setLineDash([5,4]);
+      ctx.beginPath();ctx.arc(x,y,46,0,Math.PI*2);ctx.stroke();
+      ctx.setLineDash([]);ctx.restore();
+    });
+    projects.forEach(p=>{
+      const {x,y}=xy(p.lat,p.lng);
+      const dept=DEPTS[p.dept];
+      const isSel=sel?.id===p.id,isHov=hov===p.id;
+      const r=isSel?22:isHov?18:14;
+      ctx.save();ctx.globalAlpha=.18;ctx.fillStyle="#000";ctx.beginPath();ctx.arc(x+2,y+3,r,0,Math.PI*2);ctx.fill();ctx.restore();
+      ctx.fillStyle=dept.color;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+      if(isSel){
+        ctx.strokeStyle="#fff";ctx.lineWidth=3;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
+        ctx.strokeStyle=dept.color;ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,r+6,0,Math.PI*2);ctx.stroke();
+      }
+      const lbl=p.name.length>16?p.name.slice(0,14)+"…":p.name;
+      ctx.font="bold 10px Inter,sans-serif";
+      const lw=ctx.measureText(lbl).width+16;
+      ctx.fillStyle="rgba(255,255,255,.9)";ctx.fillRect(x-lw/2,y+r+3,lw,16);
+      ctx.fillStyle="#1e293b";ctx.textAlign="center";ctx.fillText(lbl,x,y+r+15);
+    });
+    const lh=Object.keys(DEPTS).length*15+28;
+    ctx.fillStyle="rgba(255,255,255,.93)";ctx.beginPath();
+    ctx.roundRect(8,H-lh-8,160,lh,8);ctx.fill();
+    ctx.strokeStyle="#e5e7eb";ctx.lineWidth=.5;ctx.beginPath();ctx.roundRect(8,H-lh-8,160,lh,8);ctx.stroke();
+    ctx.font="bold 11px Inter,sans-serif";ctx.fillStyle="#374151";ctx.textAlign="left";ctx.fillText("DEPARTMENTS",16,H-lh+16);
+    Object.values(DEPTS).forEach((d,i)=>{
+      const ly=H-lh+32+i*15;
+      ctx.fillStyle=d.color;ctx.beginPath();ctx.arc(22,ly-4,5,0,Math.PI*2);ctx.fill();
+      ctx.font="10px Inter,sans-serif";ctx.fillStyle="#374151";ctx.fillText(d.label,32,ly);
+    });
+  }
+  useEffect(()=>{draw();},[projects,sel,hov]);
+  function click(e){
+    const rect=ref.current.getBoundingClientRect(),sc=W/rect.width;
+    const cx=(e.clientX-rect.left)*sc,cy=(e.clientY-rect.top)*sc;
+    for(const p of projects){const{x,y}=xy(p.lat,p.lng);if(Math.hypot(cx-x,cy-y)<26){setSel(sel?.id===p.id?null:p);return;}}
+    setSel(null);
+  }
+  function move(e){
+    const rect=ref.current.getBoundingClientRect(),sc=W/rect.width;
+    const cx=(e.clientX-rect.left)*sc,cy=(e.clientY-rect.top)*sc;
+    let f=null;for(const p of projects){const{x,y}=xy(p.lat,p.lng);if(Math.hypot(cx-x,cy-y)<22){f=p.id;break;}}
+    setHov(f);ref.current.style.cursor=f?"pointer":"default";
+  }
+  return <div style={{position:"relative"}}>
+    <canvas ref={ref} width={W} height={H} onClick={click} onMouseMove={move}
+      style={{width:"100%",height:"auto",borderRadius:12,border:"1px solid #e5e7eb",display:"block"}}/>
+    {sel&&<div style={{position:"absolute",top:12,right:12,background:"#fff",border:"1px solid #e5e7eb",
+      borderRadius:14,padding:"14px 18px",width:248,boxShadow:"0 8px 24px rgba(0,0,0,.14)",zIndex:10}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+        <div style={{fontWeight:700,fontSize:14,color:"#111827",lineHeight:1.3,maxWidth:200}}>{sel.name}</div>
+        <button onClick={e=>{e.stopPropagation();setSel(null);}}
+          style={{background:"none",border:"none",cursor:"pointer",color:"#9ca3af",fontSize:18,padding:0,lineHeight:1}}>✕</button>
+      </div>
+      <div style={{marginTop:8,display:"flex",gap:6,flexWrap:"wrap"}}>
+        <Badge text={sel.status} color={sc(sel.status)} bg={sb(sel.status)}/>
+        <Badge text={sel.priority} color={pc(sel.priority)} bg={pc(sel.priority)+"18"}/>
+      </div>
+      <div style={{marginTop:10,fontSize:12,color:"#6b7280"}}>{DEPTS[sel.dept].icon} {DEPTS[sel.dept].label}</div>
+      <div style={{fontSize:12,color:"#6b7280",marginTop:3}}>📍 {sel.location}</div>
+      <div style={{marginTop:10}}>
+        <div style={{fontSize:11,color:"#9ca3af",marginBottom:4}}>{sel.progress}% complete</div>
+        <Bar value={sel.progress} color={DEPTS[sel.dept].color}/>
+      </div>
+      {sel.conflicts.length>0&&<div style={{marginTop:10,background:"#fee2e2",borderRadius:8,
+        padding:"6px 10px",fontSize:12,color:"#991b1b"}}>⚠️ {sel.conflicts.length} conflict(s) detected</div>}
+    </div>}
+  </div>;
+}
+
+function ConflictCard({p1,p2}){
+  return <Card style={{borderLeft:"4px solid #ef4444"}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      <div style={{fontWeight:700,fontSize:15,color:"#111827"}}>⚠️ Location & Timeline Conflict</div>
+      <Badge text="High Risk" color="#991b1b" bg="#fee2e2"/>
+    </div>
+    <div style={{marginTop:14,display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:12,alignItems:"center"}}>
+      {[p1,p2].map((p,i)=><React.Fragment key={i}>
+        {i===1&&<div style={{textAlign:"center",color:"#dc2626",fontWeight:800,fontSize:22}}>⟷</div>}
+        <div style={{background:DEPTS[p.dept].light,borderRadius:10,padding:"10px 14px"}}>
+          <div style={{fontSize:11,color:DEPTS[p.dept].color,fontWeight:700}}>{DEPTS[p.dept].icon} {DEPTS[p.dept].label}</div>
+          <div style={{fontWeight:700,fontSize:13,marginTop:4,color:"#1e293b"}}>{p.name}</div>
+          <div style={{fontSize:11,color:"#6b7280",marginTop:2}}>{p.start} → {p.end}</div>
+        </div>
+      </React.Fragment>)}
+    </div>
+    <div style={{marginTop:14,background:"#f8fafc",borderRadius:10,padding:"10px 14px"}}>
+      <div style={{fontSize:12,fontWeight:700,color:"#374151",marginBottom:6}}>🔍 Conflict Details</div>
+      <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
+        {["📍 Same road corridor","📅 Overlapping dates","⛏️ Both require excavation"].map((t,i)=>
+          <div key={i} style={{fontSize:12,color:"#4b5563"}}>{t}</div>)}
+      </div>
+    </div>
+    <div style={{marginTop:12,background:"#eff6ff",borderRadius:10,padding:"10px 14px"}}>
+      <div style={{fontSize:12,fontWeight:700,color:"#1d4ed8",marginBottom:4}}>💡 Recommended Action</div>
+      <div style={{fontSize:12,color:"#1e40af",lineHeight:1.6}}>
+        Schedule <strong>{p2.name}</strong> after <strong>{p1.name}</strong> completes (post-Oct 2026),
+        or coordinate a joint excavation window — estimated 60% reduction in citizen disruption and ₹8–12L rework savings.
+      </div>
+    </div>
+    <div style={{marginTop:12,display:"flex",gap:10,flexWrap:"wrap"}}>
+      {[["📅 Reschedule","#eff6ff","#bfdbfe","#2563eb"],
+        ["🤝 Joint Coordination","#f0fdf4","#bbf7d0","#15803d"],
+        ["🚨 Escalate","#fff7ed","#fed7aa","#c2410c"]]
+        .map(([t,bg,br,fc],i)=><button key={i} style={{flex:1,minWidth:110,background:bg,border:"1px solid "+br,
+          borderRadius:8,padding:"8px 0",fontSize:12,color:fc,fontWeight:700,cursor:"pointer"}}>{t}</button>)}
+    </div>
+  </Card>;
+}
+
+function App(){
+  const [page,setPage]=useState("Dashboard");
+  const [projects,setProjects]=useState(INIT_PROJECTS);
+  const [notifs,setNotifs]=useState(INIT_NOTIFS);
+  const [sidebar,setSidebar]=useState(true);
+  const [notifOpen,setNotifOpen]=useState(false);
+  const [newProj,setNewProj]=useState(null);
+  const [selProj,setSelProj]=useState(null);
+  const [fSt,setFSt]=useState("all");
+  const [fDept,setFDept]=useState("all");
+  const [feedback,setFeedback]=useState("");
+  const [fbSent,setFbSent]=useState(false);
+  const [toast,setToast]=useState(null);
+
+  const unread=notifs.filter(n=>!n.read).length;
+  const pending=projects.filter(p=>p.status==="pending");
+  const pairs=[];const seen=new Set();
+  projects.forEach(p=>p.conflicts.forEach(cid=>{
+    const k=[p.id,cid].sort().join("-");
+    if(!seen.has(k)){seen.add(k);const o=projects.find(x=>x.id===cid);if(o)pairs.push([p,o]);}
+  }));
+
+  function showToast(msg,type="ok"){setToast({msg,type});setTimeout(()=>setToast(null),3000);}
+
+  function approve(id){
+    setProjects(ps=>ps.map(p=>p.id===id?{...p,status:"active"}:p));
+    setNotifs(ns=>[{id:Date.now(),type:"success",title:"Project Approved",
+      msg:projects.find(p=>p.id===id)?.name+" approved and scheduled.",time:"just now",read:false},...ns]);
+    showToast("Project approved ✅");
+  }
+  function reject(id){setProjects(ps=>ps.map(p=>p.id===id?{...p,status:"rejected"}:p));showToast("Project rejected","err");}
+
+  const filtered=projects.filter(p=>(fSt==="all"||p.status===fSt)&&(fDept==="all"||p.dept===fDept));
+  const dStats=Object.keys(DEPTS).map(k=>({dept:k,count:projects.filter(p=>p.dept===k).length,color:DEPTS[k].color}));
+
+  const sel={padding:"8px 12px",borderRadius:8,border:"1px solid #e5e7eb",fontSize:13,cursor:"pointer",background:"#fff"};
+  const inp={width:"100%",padding:"8px 12px",borderRadius:8,border:"1px solid #e5e7eb",fontSize:13,outline:"none",boxSizing:"border-box"};
+
+  return <div style={{display:"flex",height:"100vh",overflow:"hidden"}}>
+
+    {toast&&<div style={{position:"fixed",top:20,left:"50%",transform:"translateX(-50%)",
+      background:toast.type==="err"?"#dc2626":"#059669",color:"#fff",borderRadius:10,
+      padding:"10px 22px",fontSize:13,fontWeight:700,zIndex:9999,boxShadow:"0 4px 16px rgba(0,0,0,.2)"}}>
+      {toast.msg}
+    </div>}
+
+    {/* SIDEBAR */}
+    <div style={{width:sidebar?238:66,background:"#0f172a",transition:"width .25s",
+      flexShrink:0,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      <div style={{padding:"18px 14px 12px",borderBottom:"1px solid #1e293b"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:36,height:36,borderRadius:10,background:"#1e40af",display:"flex",
+            alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>🏙️</div>
+          {sidebar&&<div>
+            <div style={{fontWeight:800,fontSize:13,color:"#f1f5f9",letterSpacing:.5}}>UDCP</div>
+            <div style={{fontSize:10,color:"#475569"}}>Bhopal Smart City</div>
+          </div>}
+        </div>
+      </div>
+      <nav style={{flex:1,padding:"10px 8px",overflowY:"auto"}}>
+        {PAGES.map(p=>{
+          const act=page===p;
+          const badge=(p==="Conflicts"&&pairs.length)||(p==="Notifications"&&unread)||(p==="Approvals"&&pending.length)||0;
+          return <button key={p} onClick={()=>setPage(p)} style={{display:"flex",alignItems:"center",gap:10,
+            width:"100%",padding:"8px 10px",borderRadius:10,border:"none",cursor:"pointer",marginBottom:2,
+            background:act?"#1e40af":"transparent",color:act?"#fff":"#64748b",textAlign:"left"}}>
+            <span style={{fontSize:17,flexShrink:0,width:22,textAlign:"center"}}>{ICONS[p]}</span>
+            {sidebar&&<span style={{fontSize:13,fontWeight:act?700:500}}>{p}</span>}
+            {badge>0&&sidebar&&<span style={{marginLeft:"auto",background:p==="Conflicts"?"#ef4444":"#3b82f6",
+              color:"#fff",borderRadius:99,fontSize:10,fontWeight:700,padding:"1px 7px"}}>{badge}</span>}
+          </button>;
+        })}
+      </nav>
+      <div style={{padding:"10px 8px",borderTop:"1px solid #1e293b"}}>
+        <button onClick={()=>setSidebar(s=>!s)} style={{display:"flex",alignItems:"center",gap:8,width:"100%",
+          padding:"7px 10px",borderRadius:8,border:"none",cursor:"pointer",background:"transparent",
+          color:"#475569",fontSize:13}}>
+          <span>{sidebar?"◀":"▶"}</span>{sidebar&&<span>Collapse</span>}
+        </button>
+        {sidebar&&<div style={{marginTop:8,padding:"8px 10px",background:"#1e293b",borderRadius:10}}>
+          <div style={{fontSize:10,color:"#475569"}}>Logged in as</div>
+          <div style={{fontSize:13,color:"#e2e8f0",fontWeight:700,marginTop:1}}>Admin · Bhopal MC</div>
+          <div style={{fontSize:10,color:"#22c55e",marginTop:2}}>● Online</div>
+        </div>}
+      </div>
+    </div>
+
+    {/* MAIN */}
+    <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",minWidth:0}}>
+
+      {/* TOPBAR */}
+      <div style={{background:"#fff",borderBottom:"1px solid #e5e7eb",padding:"0 22px",height:58,
+        display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
+        <div>
+          <div style={{fontWeight:800,fontSize:16,color:"#0f172a"}}>{page}</div>
+          <div style={{fontSize:11,color:"#94a3b8"}}>Unified Department Coordination Platform — Bhopal Municipal Corporation</div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          {pairs.length>0&&<div style={{background:"#fee2e2",color:"#991b1b",borderRadius:8,
+            padding:"4px 12px",fontSize:12,fontWeight:700}}>
+            ⚠️ {pairs.length} Active Conflict{pairs.length>1?"s":""}
+          </div>}
+          <div style={{position:"relative"}}>
+            <button onClick={()=>setNotifOpen(n=>!n)} style={{width:38,height:38,borderRadius:10,
+              border:"1px solid #e5e7eb",background:"#fff",cursor:"pointer",fontSize:16,
+              display:"flex",alignItems:"center",justifyContent:"center",position:"relative"}}>
+              🔔{unread>0&&<span style={{position:"absolute",top:7,right:7,width:8,height:8,
+                background:"#ef4444",borderRadius:"50%",border:"2px solid #fff"}}/>}
+            </button>
+            {notifOpen&&<div style={{position:"absolute",top:46,right:0,background:"#fff",border:"1px solid #e5e7eb",
+              borderRadius:14,width:340,boxShadow:"0 8px 32px rgba(0,0,0,.14)",zIndex:999,overflow:"hidden"}}>
+              <div style={{padding:"12px 16px 10px",borderBottom:"1px solid #f3f4f6",
+                display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div style={{fontWeight:700,fontSize:14}}>Notifications</div>
+                <button onClick={()=>setNotifs(ns=>ns.map(n=>({...n,read:true})))}
+                  style={{fontSize:12,color:"#3b82f6",background:"none",border:"none",cursor:"pointer",fontWeight:600}}>Mark all read</button>
+              </div>
+              <div style={{maxHeight:300,overflowY:"auto"}}>
+                {notifs.map(n=><div key={n.id} style={{padding:"10px 16px",borderBottom:"1px solid #f9fafb",
+                  background:n.read?"#fff":"#eff6ff"}}>
+                  <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
+                    <span style={{fontSize:18}}>{n.type==="conflict"?"⚠️":n.type==="approval"?"📋":n.type==="success"?"✅":"🔔"}</span>
+                    <div>
+                      <div style={{fontWeight:700,fontSize:13,color:"#111827"}}>{n.title}</div>
+                      <div style={{fontSize:12,color:"#6b7280",lineHeight:1.5,marginTop:2}}>{n.msg}</div>
+                      <div style={{fontSize:11,color:"#9ca3af",marginTop:4}}>{n.time}</div>
+                    </div>
+                  </div>
+                </div>)}
+              </div>
+            </div>}
+          </div>
+          <div style={{width:36,height:36,borderRadius:10,background:"#dbeafe",
+            display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>👤</div>
+        </div>
+      </div>
+
+      {/* CONTENT */}
+      <div style={{flex:1,overflowY:"auto",padding:22}}>
+
+        {/* ── DASHBOARD ────────────────────────────────── */}
+        {page==="Dashboard"&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14}}>
+            <StatCard icon="📁" label="Total Projects"   value={projects.length} sub="All departments" color="#2563eb"/>
+            <StatCard icon="🔄" label="Active"           value={projects.filter(p=>p.status==="active").length} sub="In progress" color="#059669"/>
+            <StatCard icon="⚠️" label="Conflicts"        value={pairs.length} sub="Need attention" color="#dc2626"/>
+            <StatCard icon="⏳" label="Pending Approval" value={pending.length} sub="Awaiting review" color="#d97706"/>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"3fr 2fr",gap:14}}>
+            <Card>
+              <div style={{fontWeight:700,fontSize:14,color:"#0f172a",marginBottom:14}}>Project Status Breakdown</div>
+              <Donut data={[
+                {label:"Active",   value:projects.filter(p=>p.status==="active").length,    color:"#059669"},
+                {label:"Pending",  value:projects.filter(p=>p.status==="pending").length,   color:"#d97706"},
+                {label:"Approved", value:projects.filter(p=>p.status==="approved").length,  color:"#2563eb"},
+                {label:"Completed",value:projects.filter(p=>p.status==="completed").length, color:"#6b7280"},
+              ]}/>
+            </Card>
+            <Card>
+              <div style={{fontWeight:700,fontSize:14,color:"#0f172a",marginBottom:14}}>By Department</div>
+              <Bars data={dStats.map(d=>({label:DEPTS[d.dept].icon,value:d.count,color:d.color}))}/>
+              <div style={{marginTop:10,display:"flex",flexWrap:"wrap",gap:6}}>
+                {dStats.map(d=><div key={d.dept} style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:"#6b7280"}}>
+                  <div style={{width:8,height:8,borderRadius:2,background:d.color}}/>{DEPTS[d.dept].icon} {DEPTS[d.dept].label}
+                </div>)}
+              </div>
+            </Card>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+            <Card>
+              <div style={{fontWeight:700,fontSize:14,color:"#0f172a",marginBottom:12}}>Recent Projects</div>
+              {projects.slice(0,5).map(p=><div key={p.id} style={{display:"flex",alignItems:"center",gap:12,
+                padding:"9px 0",borderBottom:"1px solid #f8fafc"}}>
+                <div style={{width:38,height:38,borderRadius:10,background:DEPTS[p.dept].light,
+                  display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{DEPTS[p.dept].icon}</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:600,fontSize:13,color:"#111827",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.name}</div>
+                  <div style={{fontSize:11,color:"#6b7280",marginBottom:4}}>{DEPTS[p.dept].label}</div>
+                  <Bar value={p.progress} color={DEPTS[p.dept].color}/>
+                </div>
+                <Badge text={p.status} color={sc(p.status)} bg={sb(p.status)}/>
+              </div>)}
+            </Card>
+            <Card>
+              <div style={{fontWeight:700,fontSize:14,color:"#0f172a",marginBottom:12}}>Recent Activity</div>
+              {notifs.slice(0,5).map(n=><div key={n.id} style={{display:"flex",gap:10,padding:"8px 0",
+                borderBottom:"1px solid #f8fafc",alignItems:"flex-start"}}>
+                <span style={{fontSize:18,flexShrink:0}}>{n.type==="conflict"?"⚠️":n.type==="approval"?"📋":n.type==="success"?"✅":"🔔"}</span>
+                <div>
+                  <div style={{fontSize:13,fontWeight:600,color:"#111827"}}>{n.title}</div>
+                  <div style={{fontSize:12,color:"#6b7280",lineHeight:1.4}}>{n.msg.slice(0,56)}{n.msg.length>56?"…":""}</div>
+                  <div style={{fontSize:11,color:"#9ca3af",marginTop:2}}>{n.time}</div>
+                </div>
+              </div>)}
+            </Card>
+          </div>
+          <Card style={{background:"#0f172a",border:"none"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:14}}>
+              <div>
+                <div style={{fontSize:14,fontWeight:800,color:"#f1f5f9"}}>🏙️ Smart City Impact — Coordination vs Silos</div>
+                <div style={{fontSize:12,color:"#64748b",marginTop:2}}>Estimated outcomes of using UDCP</div>
+              </div>
+              <div style={{display:"flex",gap:24}}>
+                {[["₹42L+","Rework cost avoided","#22c55e"],["3 roads","Re-excavation prevented","#38bdf8"],["~60%","Citizen disruption reduced","#a78bfa"]]
+                  .map(([v,l,c],i)=><div key={i} style={{textAlign:"center"}}>
+                    <div style={{fontSize:22,fontWeight:800,color:c}}>{v}</div>
+                    <div style={{fontSize:11,color:"#64748b",maxWidth:90,lineHeight:1.3}}>{l}</div>
+                  </div>)}
+              </div>
+            </div>
+          </Card>
+        </div>}
+
+        {/* ── PROJECTS ─────────────────────────────────── */}
+        {page==="Projects"&&<div>
+          <div style={{display:"flex",gap:10,marginBottom:16,alignItems:"center",flexWrap:"wrap"}}>
+            <select value={fSt} onChange={e=>setFSt(e.target.value)} style={sel}>
+              <option value="all">All Status</option>
+              {["active","pending","approved","completed","rejected"].map(s=><option key={s} value={s}>{s.charAt(0).toUpperCase()+s.slice(1)}</option>)}
+            </select>
+            <select value={fDept} onChange={e=>setFDept(e.target.value)} style={sel}>
+              <option value="all">All Departments</option>
+              {Object.entries(DEPTS).map(([k,v])=><option key={k} value={k}>{v.icon} {v.label}</option>)}
+            </select>
+            <div style={{fontSize:13,color:"#6b7280",marginLeft:4}}>{filtered.length} result{filtered.length!==1?"s":""}</div>
+            <button onClick={()=>setNewProj({})} style={{marginLeft:"auto",padding:"8px 18px",background:"#2563eb",
+              color:"#fff",borderRadius:8,border:"none",cursor:"pointer",fontWeight:700,fontSize:13}}>+ New Project</button>
+          </div>
+
+          {newProj&&<Card style={{marginBottom:16,border:"2px solid #bfdbfe"}}>
+            <div style={{fontWeight:700,fontSize:15,color:"#1d4ed8",marginBottom:14}}>➕ Register New Project</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+              {[{l:"Project Name",k:"name",ph:"e.g. Habibganj Underpass Repair"},
+                {l:"Assigned Officer",k:"officer",ph:"Officer full name"}].map(f=><div key={f.k}>
+                <label style={{fontSize:12,fontWeight:700,color:"#374151",display:"block",marginBottom:4}}>{f.l}</label>
+                <input value={newProj[f.k]||""} onChange={e=>setNewProj(p=>({...p,[f.k]:e.target.value}))}
+                  placeholder={f.ph} style={inp}/>
+              </div>)}
+              {[{l:"Department",k:"dept",opts:[["","Select department"],...Object.entries(DEPTS).map(([k,v])=>[k,v.icon+" "+v.label])]},
+                {l:"Priority",k:"priority",opts:[["","Select priority"],["high","🔴 High"],["medium","🟡 Medium"],["low","🟢 Low"]]}]
+                .map(f=><div key={f.k}>
+                <label style={{fontSize:12,fontWeight:700,color:"#374151",display:"block",marginBottom:4}}>{f.l}</label>
+                <select value={newProj[f.k]||""} onChange={e=>setNewProj(p=>({...p,[f.k]:e.target.value}))}
+                  style={{...inp}}>{f.opts.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>
+              </div>)}
+              {[{l:"Start Date",k:"start"},{l:"End Date",k:"end"}].map(f=><div key={f.k}>
+                <label style={{fontSize:12,fontWeight:700,color:"#374151",display:"block",marginBottom:4}}>{f.l}</label>
+                <input type="date" value={newProj[f.k]||""} onChange={e=>setNewProj(p=>({...p,[f.k]:e.target.value}))} style={inp}/>
+              </div>)}
+            </div>
+            <div style={{marginTop:12}}>
+              <label style={{fontSize:12,fontWeight:700,color:"#374151",display:"block",marginBottom:4}}>Description</label>
+              <textarea value={newProj.description||""} onChange={e=>setNewProj(p=>({...p,description:e.target.value}))}
+                placeholder="Brief scope and impact…"
+                style={{...inp,resize:"vertical",minHeight:60}}/>
+            </div>
+            <div style={{marginTop:14,display:"flex",gap:10}}>
+              <button onClick={()=>{
+                if(!newProj.name||!newProj.dept){showToast("Name and department required","err");return;}
+                const id=Date.now();
+                setProjects(ps=>[...ps,{...newProj,id,status:"pending",progress:0,conflicts:[],budget:1000000,lat:23.22,lng:77.44}]);
+                setNotifs(ns=>[{id,type:"info",title:"New Project Submitted",msg:newProj.name+" submitted for review.",time:"just now",read:false},...ns]);
+                setNewProj(null);showToast("Project submitted for approval 📋");
+              }} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:8,
+                padding:"9px 22px",fontWeight:700,cursor:"pointer",fontSize:13}}>Submit for Approval</button>
+              <button onClick={()=>setNewProj(null)} style={{background:"#f1f5f9",color:"#374151",border:"none",
+                borderRadius:8,padding:"9px 18px",cursor:"pointer",fontSize:13}}>Cancel</button>
+            </div>
+          </Card>}
+
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            {filtered.map(p=><Card key={p.id} onClick={()=>setSelProj(selProj?.id===p.id?null:p)}>
+              <div style={{display:"flex",alignItems:"flex-start",gap:14}}>
+                <div style={{width:46,height:46,borderRadius:12,background:DEPTS[p.dept].light,
+                  display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>{DEPTS[p.dept].icon}</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}>
+                    <div style={{fontWeight:700,fontSize:15,color:"#111827"}}>{p.name}</div>
+                    <Badge text={p.status} color={sc(p.status)} bg={sb(p.status)}/>
+                    <Badge text={p.priority} color={pc(p.priority)} bg={pc(p.priority)+"18"}/>
+                    {p.conflicts.length>0&&<Badge text="⚠️ Conflict" color="#991b1b" bg="#fee2e2"/>}
+                  </div>
+                  <div style={{display:"flex",gap:16,marginTop:5,flexWrap:"wrap"}}>
+                    {[DEPTS[p.dept].icon+" "+DEPTS[p.dept].label,"📍 "+p.location,"📅 "+p.start+" → "+p.end,"💰 ₹"+(p.budget/1e5).toFixed(1)+"L"]
+                      .map((t,i)=><div key={i} style={{fontSize:12,color:"#6b7280"}}>{t}</div>)}
+                  </div>
+                  <div style={{marginTop:10,display:"flex",alignItems:"center",gap:10}}>
+                    <div style={{flex:1}}><Bar value={p.progress} color={DEPTS[p.dept].color}/></div>
+                    <div style={{fontSize:12,fontWeight:700,color:"#374151",flexShrink:0}}>{p.progress}%</div>
+                  </div>
+                </div>
+              </div>
+              {selProj?.id===p.id&&<div style={{marginTop:14,paddingTop:14,borderTop:"1px solid #f1f5f9"}}>
+                <div style={{fontSize:13,color:"#4b5563",lineHeight:1.6,marginBottom:10}}>{p.description}</div>
+                <div style={{fontSize:12,color:"#6b7280"}}>👷 Officer: <strong style={{color:"#374151"}}>{p.officer}</strong></div>
+                <div style={{fontWeight:700,fontSize:13,margin:"12px 0 6px",color:"#374151"}}>Approval Workflow</div>
+                <Workflow project={p}/>
+              </div>}
+            </Card>)}
+          </div>
+        </div>}
+
+        {/* ── MAP ──────────────────────────────────────── */}
+        {page==="Map"&&<div style={{display:"flex",flexDirection:"column",gap:14}}>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            {Object.entries(DEPTS).map(([k,v])=><div key={k} style={{display:"flex",alignItems:"center",
+              gap:6,background:v.light,borderRadius:8,padding:"4px 12px",fontSize:12,color:v.color,fontWeight:700}}>
+              <div style={{width:9,height:9,borderRadius:"50%",background:v.color}}/>{v.icon} {v.label}
+            </div>)}
+            <div style={{display:"flex",alignItems:"center",gap:6,background:"#fee2e2",borderRadius:8,
+              padding:"4px 12px",fontSize:12,color:"#dc2626",fontWeight:700}}>⚠️ Conflict Zone</div>
+          </div>
+          <Card style={{padding:10}}><MapCanvas projects={projects}/></Card>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+            {projects.map(p=><Card key={p.id} style={{borderTop:"3px solid "+DEPTS[p.dept].color,padding:"14px 16px"}}>
+              <div style={{fontWeight:700,fontSize:13,color:"#111827",marginBottom:3}}>{p.name}</div>
+              <div style={{fontSize:11,color:"#6b7280"}}>{DEPTS[p.dept].icon} {DEPTS[p.dept].label}</div>
+              <div style={{fontSize:11,color:"#6b7280",marginTop:2}}>📍 {p.location}</div>
+              <div style={{marginTop:8}}><Bar value={p.progress} color={DEPTS[p.dept].color}/></div>
+              {p.conflicts.length>0&&<div style={{marginTop:7,fontSize:11,color:"#991b1b",fontWeight:700}}>⚠️ Conflict detected</div>}
+            </Card>)}
+          </div>
+        </div>}
+
+        {/* ── CONFLICTS ────────────────────────────────── */}
+        {page==="Conflicts"&&<div style={{display:"flex",flexDirection:"column",gap:14}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
+            <StatCard icon="⚠️" label="Active Conflicts" value={pairs.length} color="#dc2626"/>
+            <StatCard icon="🛣️" label="Roads Affected"   value="~2.3 km"     color="#d97706"/>
+            <StatCard icon="💰" label="Est. Rework Cost" value="₹42L+" sub="If unresolved" color="#7c3aed"/>
+          </div>
+          {pairs.length===0
+            ?<Card style={{textAlign:"center",padding:56}}>
+              <div style={{fontSize:52,marginBottom:10}}>✅</div>
+              <div style={{fontWeight:800,fontSize:18,color:"#059669"}}>No Conflicts Detected</div>
+              <div style={{fontSize:13,color:"#6b7280",marginTop:6}}>All projects are spatially and temporally coordinated.</div>
+            </Card>
+            :pairs.map(([p1,p2],i)=><ConflictCard key={i} p1={p1} p2={p2}/>)}
+          <Card>
+            <div style={{fontWeight:700,fontSize:14,color:"#0f172a",marginBottom:14}}>🔍 How the Conflict Detection Engine Works</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
+              {[["📍","Spatial Analysis","Projects within 200m radius are automatically flagged as location conflicts."],
+                ["📅","Timeline Overlap","Overlapping start/end dates across departments trigger cross-department alerts."],
+                ["⛏️","Excavation Conflict","Multiple departments digging the same road = duplicate cost + citizen disruption."]]
+                .map(([ic,t,d],i)=><div key={i} style={{background:"#f8fafc",borderRadius:10,padding:"14px 16px"}}>
+                  <div style={{fontSize:26,marginBottom:8}}>{ic}</div>
+                  <div style={{fontWeight:700,fontSize:13,color:"#111827",marginBottom:4}}>{t}</div>
+                  <div style={{fontSize:12,color:"#6b7280",lineHeight:1.55}}>{d}</div>
+                </div>)}
+            </div>
+          </Card>
+        </div>}
+
+        {/* ── APPROVALS ────────────────────────────────── */}
+        {page==="Approvals"&&<div style={{display:"flex",flexDirection:"column",gap:14}}>
+          {pending.length===0
+            ?<Card style={{textAlign:"center",padding:56}}>
+              <div style={{fontSize:52,marginBottom:10}}>✅</div>
+              <div style={{fontWeight:800,fontSize:18,color:"#059669"}}>No Pending Approvals</div>
+              <div style={{fontSize:13,color:"#6b7280",marginTop:6}}>All submitted projects have been reviewed.</div>
+            </Card>
+            :pending.map(p=><Card key={p.id} style={{borderLeft:"4px solid #d97706"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:700,fontSize:15,color:"#111827"}}>{p.name}</div>
+                  <div style={{fontSize:12,color:"#6b7280",marginTop:4}}>{DEPTS[p.dept].icon} {DEPTS[p.dept].label} · 👷 {p.officer}</div>
+                  <div style={{fontSize:12,color:"#6b7280",marginTop:2}}>📅 {p.start} → {p.end} · 💰 ₹{(p.budget/1e5).toFixed(1)}L</div>
+                  {p.conflicts.length>0&&<div style={{marginTop:8,background:"#fee2e2",borderRadius:8,
+                    padding:"6px 10px",fontSize:12,color:"#991b1b",display:"inline-block"}}>
+                    ⚠️ {p.conflicts.length} conflict(s) detected — review carefully before approving.
+                  </div>}
+                </div>
+                <Badge text="Pending" color={sc("pending")} bg={sb("pending")}/>
+              </div>
+              <div style={{marginTop:12}}>
+                <div style={{fontWeight:700,fontSize:13,color:"#374151",marginBottom:6}}>Approval Workflow</div>
+                <Workflow project={p}/>
+              </div>
+              <div style={{marginTop:14,display:"flex",gap:10,flexWrap:"wrap"}}>
+                <button onClick={()=>approve(p.id)} style={{background:"#059669",color:"#fff",border:"none",
+                  borderRadius:8,padding:"9px 22px",fontWeight:700,cursor:"pointer",fontSize:13}}>✅ Approve & Schedule</button>
+                <button onClick={()=>reject(p.id)} style={{background:"#fee2e2",color:"#dc2626",border:"1px solid #fecaca",
+                  borderRadius:8,padding:"9px 22px",fontWeight:700,cursor:"pointer",fontSize:13}}>❌ Reject</button>
+                <button style={{background:"#fff7ed",color:"#c2410c",border:"1px solid #fed7aa",
+                  borderRadius:8,padding:"9px 18px",cursor:"pointer",fontSize:13,fontWeight:600}}>📝 Request More Info</button>
+              </div>
+            </Card>)}
+        </div>}
+
+        {/* ── ANALYTICS ────────────────────────────────── */}
+        {page==="Analytics"&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14}}>
+            <StatCard icon="✅" label="Completion Rate"    value="83%"    sub="↑12% vs last quarter" color="#059669"/>
+            <StatCard icon="⚠️" label="Conflict Reduction" value="−38%"   sub="From Q1 2026"         color="#7c3aed"/>
+            <StatCard icon="💰" label="Budget Saved"       value="₹18L"   sub="Via coordination"     color="#2563eb"/>
+            <StatCard icon="😊" label="Citizen Score"      value="76/100" sub="Public satisfaction"  color="#d97706"/>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+            <Card>
+              <div style={{fontWeight:700,fontSize:14,color:"#0f172a",marginBottom:14}}>Department Progress</div>
+              {Object.entries(DEPTS).map(([k,v])=>{
+                const dp=projects.filter(p=>p.dept===k);
+                const avg=dp.length?Math.round(dp.reduce((a,b)=>a+b.progress,0)/dp.length):0;
+                return <div key={k} style={{marginBottom:14}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                    <div style={{fontSize:13,color:"#374151"}}>{v.icon} {v.label}</div>
+                    <div style={{fontSize:13,fontWeight:800,color:v.color}}>{avg}%</div>
+                  </div>
+                  <Bar value={avg} color={v.color}/>
+                </div>;
+              })}
+            </Card>
+            <Card>
+              <div style={{fontWeight:700,fontSize:14,color:"#0f172a",marginBottom:14}}>Budget Utilization</div>
+              {projects.slice(0,5).map(p=>{
+                const used=Math.round(p.progress*p.budget/100);
+                return <div key={p.id} style={{marginBottom:14}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                    <div style={{fontSize:12,color:"#374151",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"65%"}}>{p.name}</div>
+                    <div style={{fontSize:11,fontWeight:700,color:"#374151",flexShrink:0}}>₹{(used/1e5).toFixed(1)}L / ₹{(p.budget/1e5).toFixed(1)}L</div>
+                  </div>
+                  <Bar value={p.progress} color={DEPTS[p.dept].color}/>
+                </div>;
+              })}
+            </Card>
+          </div>
+          <Card>
+            <div style={{fontWeight:700,fontSize:14,color:"#0f172a",marginBottom:14}}>📊 Project Activity — 2026</div>
+            <Bars h={150} data={[
+              {label:"Jan",value:2,color:"#93c5fd"},{label:"Feb",value:3,color:"#60a5fa"},
+              {label:"Mar",value:5,color:"#3b82f6"},{label:"Apr",value:6,color:"#2563eb"},
+              {label:"May",value:4,color:"#1d4ed8"},{label:"Jun",value:7,color:"#1e40af"},
+              {label:"Jul",value:5,color:"#1e3a8a"},{label:"Aug",value:6,color:"#172554"},
+            ]}/>
+            <div style={{textAlign:"center",fontSize:12,color:"#94a3b8",marginTop:8}}>Projects initiated per month</div>
+          </Card>
+        </div>}
+
+        {/* ── NOTIFICATIONS ────────────────────────────── */}
+        {page==="Notifications"&&<div style={{display:"flex",flexDirection:"column",gap:10}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+            <div style={{fontSize:13,color:"#6b7280",fontWeight:500}}>{unread} unread</div>
+            <button onClick={()=>setNotifs(ns=>ns.map(n=>({...n,read:true})))}
+              style={{background:"none",border:"none",color:"#2563eb",cursor:"pointer",fontWeight:700,fontSize:13}}>Mark all as read</button>
+          </div>
+          {notifs.map(n=>{
+            const lc={conflict:"#ef4444",success:"#059669",warning:"#d97706",approval:"#2563eb",info:"#2563eb"}[n.type]||"#2563eb";
+            return <Card key={n.id} style={{borderLeft:"4px solid "+lc,background:n.read?"#fff":"#eff6ff"}}>
+              <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+                <span style={{fontSize:26,flexShrink:0}}>{n.type==="conflict"?"⚠️":n.type==="approval"?"📋":n.type==="success"?"✅":n.type==="warning"?"🔔":"ℹ️"}</span>
+                <div style={{flex:1}}>
+                  <div style={{display:"flex",justifyContent:"space-between"}}>
+                    <div style={{fontWeight:700,fontSize:14,color:"#111827"}}>{n.title}</div>
+                    {!n.read&&<span style={{width:8,height:8,background:"#3b82f6",borderRadius:"50%",marginTop:6,flexShrink:0}}/>}
+                  </div>
+                  <div style={{fontSize:13,color:"#4b5563",marginTop:4,lineHeight:1.55}}>{n.msg}</div>
+                  <div style={{fontSize:11,color:"#9ca3af",marginTop:6}}>⏰ {n.time}</div>
+                </div>
+              </div>
+            </Card>;
+          })}
+        </div>}
+
+        {/* ── AUDIT LOGS ───────────────────────────────── */}
+        {page==="Audit Logs"&&<Card>
+          <div style={{fontWeight:700,fontSize:14,color:"#0f172a",marginBottom:14}}>📜 System Audit Trail</div>
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",minWidth:600}}>
+              <thead>
+                <tr style={{background:"#f8fafc"}}>
+                  {["Timestamp","User","Role","Action","Target"].map(h=><th key={h} style={{padding:"10px 14px",
+                    textAlign:"left",fontSize:11,fontWeight:700,color:"#6b7280",borderBottom:"1px solid #e5e7eb",
+                    textTransform:"uppercase",letterSpacing:.5,whiteSpace:"nowrap"}}>{h}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {AUDIT.map(l=><tr key={l.id} style={{borderBottom:"1px solid #f8fafc"}}>
+                  <td style={{padding:"10px 14px",fontSize:12,color:"#6b7280",whiteSpace:"nowrap"}}>{l.time}</td>
+                  <td style={{padding:"10px 14px",fontSize:13,fontWeight:700,color:"#111827"}}>{l.user}</td>
+                  <td style={{padding:"10px 14px"}}>
+                    <Badge text={l.role} color={l.role==="System"?"#7c3aed":l.role==="Admin"?"#1d4ed8":"#374151"}
+                      bg={l.role==="System"?"#ede9fe":l.role==="Admin"?"#dbeafe":"#f3f4f6"}/>
+                  </td>
+                  <td style={{padding:"10px 14px",fontSize:13,color:"#374151"}}>{l.action}</td>
+                  <td style={{padding:"10px 14px",fontSize:13,color:"#2563eb",fontWeight:600}}>{l.target}</td>
+                </tr>)}
+              </tbody>
+            </table>
+          </div>
+        </Card>}
+
+        {/* ── CITIZEN PORTAL ───────────────────────────── */}
+        {page==="Citizen Portal"&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <Card style={{background:"#0f172a",border:"none",padding:"24px 28px"}}>
+            <div style={{fontWeight:800,fontSize:20,color:"#f1f5f9",marginBottom:6}}>🏙️ Bhopal Smart City — Public Project Portal</div>
+            <div style={{fontSize:13,color:"#64748b",lineHeight:1.6,maxWidth:600}}>
+              Stay informed about infrastructure projects in your city. Track progress, view road closures, and share feedback with the Municipal Corporation.
+            </div>
+            <div style={{display:"flex",gap:16,marginTop:18,flexWrap:"wrap"}}>
+              {[[projects.filter(p=>p.status==="active").length,"🔄","Active Projects"],
+                [3,"🛣️","Road Closures"],[projects.length,"📋","Projects in 2026"]]
+                .map(([v,ic,l],i)=><div key={i} style={{background:"rgba(255,255,255,.08)",borderRadius:14,
+                  padding:"14px 22px",textAlign:"center"}}>
+                  <div style={{fontSize:20}}>{ic}</div>
+                  <div style={{fontSize:26,fontWeight:800,color:"#f1f5f9",marginTop:2}}>{v}</div>
+                  <div style={{fontSize:11,color:"#64748b",marginTop:1}}>{l}</div>
+                </div>)}
+            </div>
+          </Card>
+          <div style={{fontWeight:700,fontSize:15,color:"#111827"}}>🚧 Projects Currently Active in Bhopal</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12}}>
+            {projects.filter(p=>p.status==="active").map(p=><Card key={p.id}>
+              <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+                <div style={{fontSize:28,flexShrink:0}}>{DEPTS[p.dept].icon}</div>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:700,fontSize:14,color:"#111827"}}>{p.name}</div>
+                  <div style={{fontSize:12,color:"#6b7280",marginTop:2}}>{DEPTS[p.dept].label}</div>
+                  <div style={{fontSize:12,color:"#6b7280"}}>📍 {p.location}</div>
+                  <div style={{fontSize:12,color:"#6b7280"}}>🗓️ Ends {p.end}</div>
+                  <div style={{marginTop:8}}>
+                    <div style={{fontSize:11,color:"#9ca3af",marginBottom:3}}>{p.progress}% complete</div>
+                    <Bar value={p.progress} color={DEPTS[p.dept].color}/>
+                  </div>
+                  <div style={{marginTop:8}}><Badge text={p.status} color={sc(p.status)} bg={sb(p.status)}/></div>
+                </div>
+              </div>
+            </Card>)}
+          </div>
+          <Card>
+            <div style={{fontWeight:700,fontSize:15,color:"#111827",marginBottom:8}}>📝 Submit Feedback</div>
+            <div style={{fontSize:13,color:"#6b7280",marginBottom:14}}>Report a road issue or share feedback about any infrastructure project in your area.</div>
+            {fbSent
+              ?<div style={{background:"#f0fdf4",borderRadius:10,padding:"14px 18px",color:"#15803d",fontWeight:700,fontSize:14}}>
+                ✅ Thank you! Your feedback has been received by Bhopal Municipal Corporation.
+              </div>
+              :<div>
+                <textarea value={feedback} onChange={e=>setFeedback(e.target.value)}
+                  placeholder="Describe the issue or share your experience…"
+                  style={{width:"100%",minHeight:100,padding:"10px 14px",borderRadius:10,border:"1px solid #e5e7eb",
+                  fontSize:13,resize:"vertical",boxSizing:"border-box",outline:"none"}}/>
+                <button disabled={!feedback.trim()}
+                  onClick={()=>{setFbSent(true);setFeedback("");setTimeout(()=>setFbSent(false),4000);}}
+                  style={{marginTop:10,background:feedback.trim()?"#2563eb":"#e5e7eb",
+                  color:feedback.trim()?"#fff":"#9ca3af",border:"none",borderRadius:8,
+                  padding:"9px 22px",fontWeight:700,cursor:feedback.trim()?"pointer":"default",fontSize:13}}>
+                  Submit Feedback
+                </button>
+              </div>}
+          </Card>
+        </div>}
+
+      </div>
+    </div>
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
